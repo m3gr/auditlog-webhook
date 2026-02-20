@@ -57,6 +57,7 @@ The API follows the OpenAPI 3.0 specification. See [openapi.yaml](openapi.yaml) 
    # Option 2: Set environment variables
    set AWS_ACCESS_KEY_ID=your_access_key
    set AWS_SECRET_ACCESS_KEY=your_secret_key
+   set AWS_SESSION_TOKEN=your_session_token
    set AWS_DEFAULT_REGION=us-east-1
    ```
 
@@ -140,6 +141,7 @@ docker run -d -p 8080:8080 \
 export AWS_ACCESS_KEY_ID=your_access_key
 export AWS_SECRET_ACCESS_KEY=your_secret_key
 export AWS_SESSION_TOKEN=your_session_token
+export AWS_DEFAULT_REGION=us-east-1
 
 # Start the service
 docker-compose up -d
