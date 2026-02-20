@@ -94,11 +94,21 @@ paths:
                     type: string
                     example: Webhook received and processed
         '400':
-          description: Invalid JSON payload
+          description: Invalid JSON payload or schema validation error
           content:
-            text/html:
+            application/json:
               schema:
-                type: string
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: error
+                  message:
+                    type: string
+                    example: Invalid audit log format
+                  detail:
+                    type: string
+                    example: "'login123' is not one of ['login', 'password_change', 'acl_change']"
         '500':
           description: Server error
           content:

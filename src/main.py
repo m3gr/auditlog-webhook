@@ -10,11 +10,50 @@ from typing import Dict, Any
 import boto3
 from botocore.exceptions import ClientError
 import requests
+from jsonschema import validate, ValidationError
 
 
 # CloudWatch configuration
 LOG_GROUP_NAME = 'appl_audit_log'
 LOG_STREAM_NAME = f'webhook-{datetime.now().strftime("%Y-%m-%d")}'
+
+# JSON Schema for audit log events
+AUDIT_LOG_SCHEMA = {
+    "type": "object",
+    "required": ["date", "application", "ipaddr", "userid", "result", "eventtype", "message"],
+    "properties": {
+        "date": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}\\.\\d{3} [+-]\\d{4}$"
+        },
+        "application": {
+            "type": "string"
+        },
+        "ipaddr": {
+            "type": "string",
+            "pattern": "^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$"
+        },
+        "userid": {
+            "type": "string"
+        },
+        "result": {
+            "type": "boolean"
+        },
+        "eventtype": {
+            "type": "string",
+            "enum": ["login", "password_change", "acl_change"]
+        },
+        "message": {
+            "type": "object",
+            "properties": {
+                "detail": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "additionalProperties": False
+}
 
 # Global CloudWatch client and queue
 cloudwatch_client = None
@@ -76,6 +115,8 @@ def cloudwatch_worker():
     """Background worker thread that processes CloudWatch log queue."""
     global cloudwatch_client, sequence_token, error_flag
     
+    print("CloudWatch worker thread started")
+    
     while not shutdown_event.is_set() or not log_queue.empty():
         try:
             # Wait for log event with timeout to check shutdown flag
@@ -89,6 +130,8 @@ def cloudwatch_worker():
                 continue
             
             message, payload = log_data
+            
+            print(f"Processing CloudWatch event: {message}")
             
             # Prepare log event
             log_event = {
@@ -111,12 +154,34 @@ def cloudwatch_worker():
             response = cloudwatch_client.put_log_events(**kwargs)
             sequence_token = response.get('nextSequenceToken')
             
+            print(f"Successfully sent to CloudWatch")
             log_queue.task_done()
             
         except Exception as e:
             print(f"Error in CloudWatch worker: {str(e)}")
             log_queue.task_done()
             error_flag = True
+
+
+def validate_audit_log(payload: Dict[str, Any]):
+    """Validate audit log payload against schema.
+    
+    Args:
+        payload: The JSON payload to validate
+        
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    try:
+        validate(instance=payload, schema=AUDIT_LOG_SCHEMA)
+        print("Validation passed")
+        return True, ""
+    except ValidationError as e:
+        print(f"Validation error: {e.message}")
+        return False, str(e.message)
+    except Exception as e:
+        print(f"Unexpected validation error: {str(e)}")
+        return False, str(e)
 
 
 def send_to_cloudwatch(message: str, payload: Dict[str, Any] = None):
@@ -127,10 +192,12 @@ def send_to_cloudwatch(message: str, payload: Dict[str, Any] = None):
         payload: Optional payload data to include
     """
     if not cloudwatch_client:
+        print("CloudWatch client not available, skipping log")
         return
     
     # Add to queue for async processing
     log_queue.put((message, payload))
+    print(f"Queued event for CloudWatch (queue size: {log_queue.qsize()})")
 
 
 class WebhookHandler(BaseHTTPRequestHandler):
@@ -139,7 +206,6 @@ class WebhookHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         """Handle GET requests."""
         if self.path == '/up':
-            #global error_flag
             if error_flag:
                 self.send_response(503)
                 self.send_header('Content-type', 'application/json')
@@ -155,9 +221,9 @@ class WebhookHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 
                 response = {
-                'status': 'ok',
-                'message': 'Audit log webhook server is running'
-            }
+                    'status': 'ok',
+                    'message': 'Audit log webhook server is running'
+                }
             self.wfile.write(json.dumps(response).encode())
         else:
             self.send_error(404, 'Not Found')
@@ -170,6 +236,22 @@ class WebhookHandler(BaseHTTPRequestHandler):
         try:
             # Parse JSON payload
             payload = json.loads(post_data.decode('utf-8'))
+            
+            # Validate payload against schema
+            is_valid, error_message = validate_audit_log(payload)
+            if not is_valid:
+                self.send_response(400)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                
+                response = {
+                    'status': 'error',
+                    'message': 'Invalid audit log format',
+                    'detail': error_message
+                }
+                self.wfile.write(json.dumps(response).encode())
+                print(f"Validation failed: {error_message}")
+                return
             
             # Process the webhook payload
             self.process_webhook(payload)

@@ -27,11 +27,28 @@ The API follows the OpenAPI 3.0 specification. See [openapi.yaml](openapi.yaml) 
 **Field Descriptions:**
 - `date` (string): ISO8601 date - `YYYY-MM-DD HH:mm:ss.sss ZZZZ`
 - `application` (string): Application FQDN
-- `ipaddr` (string): IP Address
+- `ipaddr` (string): IP Address (must match pattern `xxx.xxx.xxx.xxx`)
 - `userid` (string): User ID
 - `result` (boolean): True for success, False for failure
-- `eventtype` (string): Event type (`login`, `password_change`, `acl_change`)
+- `eventtype` (string): Event type - must be one of: `login`, `password_change`, `acl_change`
 - `message` (object): JSON object with event details
+
+### Validation
+
+All incoming webhook payloads are validated against the schema before being sent to CloudWatch:
+- **Required fields**: All 7 fields listed above must be present
+- **Data types**: Fields must match their expected types (string, boolean, object)
+- **Format validation**: IP address and date must match expected patterns
+- **Enum validation**: `eventtype` must be one of the allowed values
+- **No extra fields**: Additional fields not in the schema are rejected
+
+Invalid payloads receive a `400 Bad Request` response with details about the validation error. The server continues listening for new events.
+
+**Test validation:**
+```bash
+# Run validation tests
+.\test_validation.ps1
+```
 
 ## Setup
 
