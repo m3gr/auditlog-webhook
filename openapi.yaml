@@ -1,0 +1,161 @@
+openapi: 3.0.3
+info:
+  title: Audit Log Webhook API
+  description: |
+    HTTP webhook server for receiving and processing audit log events.
+    Events are automatically logged to AWS CloudWatch Logs.
+  version: 0.1.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: http://0.0.0.0:8080
+    description: Docker container
+
+paths:
+  /:
+    get:
+      summary: Health check
+      description: Check if the webhook server is running
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Server is running
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  message:
+                    type: string
+                    example: Audit log webhook server is running
+
+    post:
+      summary: Submit audit log event
+      description: Receive and process an audit log webhook event
+      operationId: submitAuditLog
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditLogEvent'
+            examples:
+              loginEvent:
+                summary: User login event
+                value:
+                  date: "2026-02-17 14:30:45.123 -0500"
+                  application: "mrbeta.m3globalresearch.com"
+                  ipaddr: "192.168.123.234"
+                  userid: "userabc123"
+                  result: true
+                  eventtype: "login"
+                  message:
+                    detail: "User attempted password reset"
+              passwordChange:
+                summary: Password change event
+                value:
+                  date: "2026-02-17 15:45:30.456 -0500"
+                  application: "mrbeta.m3globalresearch.com"
+                  ipaddr: "10.0.1.50"
+                  userid: "user456"
+                  result: true
+                  eventtype: "password_change"
+                  message:
+                    detail: "Password successfully changed"
+              aclChange:
+                summary: ACL change event
+                value:
+                  date: "2026-02-17 16:20:15.789 -0500"
+                  application: "mrbeta.m3globalresearch.com"
+                  ipaddr: "172.16.0.100"
+                  userid: "admin789"
+                  result: true
+                  eventtype: "acl_change"
+                  message:
+                    detail: "User permissions updated"
+      responses:
+        '200':
+          description: Webhook received and processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: Webhook received and processed
+        '400':
+          description: Invalid JSON payload
+          content:
+            text/html:
+              schema:
+                type: string
+        '500':
+          description: Server error
+          content:
+            text/html:
+              schema:
+                type: string
+
+components:
+  schemas:
+    AuditLogEvent:
+      type: object
+      required:
+        - date
+        - application
+        - ipaddr
+        - userid
+        - result
+        - eventtype
+        - message
+      properties:
+        date:
+          type: string
+          format: date-time
+          description: ISO8601 formatted date and time
+          example: "2026-02-17 14:30:45.123 -0500"
+          pattern: '^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} [+-]\d{4}$'
+        application:
+          type: string
+          description: Application FQDN
+          example: "mrbeta.m3globalresearch.com"
+        ipaddr:
+          type: string
+          description: IP address of the client
+          example: "192.168.123.234"
+          pattern: '^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$'
+        userid:
+          type: string
+          description: User identifier
+          example: "userabc123"
+        result:
+          type: boolean
+          description: True for success, False for failure
+          example: true
+        eventtype:
+          type: string
+          description: Type of event
+          enum:
+            - login
+            - password_change
+            - acl_change
+          example: "login"
+        message:
+          type: object
+          description: Additional event details in JSON format
+          properties:
+            detail:
+              type: string
+              description: Detailed description of the event
+              example: "User attempted password reset"
+          additionalProperties: true

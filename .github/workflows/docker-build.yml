@@ -1,0 +1,64 @@
+name: Build Docker Image
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+env:
+  path_to_dockerfile: Dockerfile
+  github_iam_role: "arn:aws:iam::429451815258:role/GitHubActionsEcrAccess"
+  aws_account_id: "429451815258"
+  aws_region: "us-east-1"
+  CONTAINER_TAG_PREFIX: "429451815258.dkr.ecr.us-east-1.amazonaws.com/auditlog-webhook"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs: 
+      image_tag: ${{ steps.set-tag.outputs.tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Set image tag
+        id: set-tag
+        run: |
+          if [ "${{ github.ref }}" != 'refs/heads/master' ]; then
+            echo "IS pull request"
+            echo "tag=PR-${{ github.event.number }}" >> $GITHUB_ENV
+          else
+            echo "IS master branch"
+            echo "tag=${{ github.ref_name }}-${{ github.sha }}" >> $GITHUB_ENV
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v5.1.0
+        id: aws-creds
+        with:
+          role-to-assume: ${{ env.github_iam_role }}
+          aws-region: ${{ env.aws_region }}
+          output-credentials: true
+
+      - name: Log in to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ env.path_to_dockerfile }}
+          push: true
+          tags: |
+            ${{ env.CONTAINER_TAG_PREFIX }}:${{ env.tag }}
+            ${{ env.CONTAINER_TAG_PREFIX }}:latest
