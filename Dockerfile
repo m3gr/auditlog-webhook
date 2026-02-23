@@ -4,8 +4,9 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Set environment variables
-ENV PYTHONUNBUFFERED=1
-ENV AWS_DEFAULT_REGION=us-east-1
+ENV PYTHONUNBUFFERED=1 \
+    AWS_REGION=us-east-1 \
+    LOG_GROUP_NAME=appl_audit_log
 
 # Copy requirements and install dependencies
 COPY requirements.txt .

@@ -1,6 +1,7 @@
 """Main module for audit log webhook."""
 
 import json
+import os
 import time
 import threading
 from queue import Queue
@@ -13,8 +14,9 @@ import requests
 from jsonschema import validate, ValidationError
 
 
-# CloudWatch configuration
-LOG_GROUP_NAME = 'appl_audit_log'
+# CloudWatch configuration from environment variables
+AWS_REGION = os.getenv('AWS_REGION', os.getenv('AWS_DEFAULT_REGION', 'us-east-1'))
+LOG_GROUP_NAME = os.getenv('LOG_GROUP_NAME', 'appl_audit_log')
 LOG_STREAM_NAME = f'webhook-{datetime.now().strftime("%Y-%m-%d")}'
 
 # JSON Schema for audit log events
@@ -67,9 +69,14 @@ error_flag = False
 def setup_cloudwatch_log_group():
     """Create CloudWatch log group and stream if they don't exist."""
     global cloudwatch_client, sequence_token, error_flag
+    # AWS credentials are automatically loaded from:
+    # 1. Environment variables: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
+    # 2. AWS credentials file (~/.aws/credentials)
+    # 3. IAM role (if running on EC2/ECS/Lambda)
+    print(f"Configuring CloudWatch with region: {AWS_REGION}")
     
     try:
-        cloudwatch_client = boto3.client('logs', region_name='us-east-1')
+        cloudwatch_client = boto3.client('logs', region_name=AWS_REGION)
         
         # Create log group if it doesn't exist
         try:
@@ -291,6 +298,11 @@ class WebhookHandler(BaseHTTPRequestHandler):
 def main():
     """Main entry point for the application."""
     global worker_thread
+    
+    # Print configuration
+    print(f"AWS Region: {AWS_REGION}")
+    print(f"Log Group: {LOG_GROUP_NAME}")
+    print(f"AWS Credentials: {'Configured' if os.getenv('AWS_ACCESS_KEY_ID') else 'Using default credential chain'}")
     
     # Setup CloudWatch log group
     setup_cloudwatch_log_group()

@@ -68,11 +68,29 @@ Invalid payloads receive a `400 Bad Request` response with details about the val
 
 4. Configure AWS credentials:
    ```bash
-   # Option 1: Using AWS CLI
-   aws configure
+   # Option 1: Set environment variables (recommended for Docker/containers)
+   export AWS_ACCESS_KEY_ID=your_access_key
+   export AWS_SECRET_ACCESS_KEY=your_secret_key
+   export AWS_SESSION_TOKEN=your_session_token  # Optional
+   export AWS_REGION=us-east-1                  # Optional, defaults to us-east-1
+   export LOG_GROUP_NAME=appl_audit_log         # Optional, defaults to appl_audit_log
    
-   # Option 2: Set environment variables
-   set AWS_ACCESS_KEY_ID=your_access_key
+   # Option 2: Using AWS CLI (creates ~/.aws/credentials)
+   aws configure
+   ```
+
+## Environment Variables
+
+The application supports the following environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `AWS_ACCESS_KEY_ID` | AWS access key ID | (from AWS credential chain) |
+| `AWS_SECRET_ACCESS_KEY` | AWS secret access key | (from AWS credential chain) |
+| `AWS_SESSION_TOKEN` | AWS session token (optional) | (from AWS credential chain) |
+| `AWS_REGION` or `AWS_DEFAULT_REGION` | AWS region for CloudWatch | `us-east-1` |
+| `LOG_GROUP_NAME` | CloudWatch log group name | `appl_audit_log` |
+| `PYTHONUNBUFFERED` | Disable Python output buffering | `1` (for Docker) |
    set AWS_SECRET_ACCESS_KEY=your_secret_key
    set AWS_SESSION_TOKEN=your_session_token
    set AWS_DEFAULT_REGION=us-east-1
@@ -142,29 +160,40 @@ curl -X POST http://localhost:8080 -H "Content-Type: application/json" -d "{\"ev
 # Build the image
 docker build -t audit-log-webhook .
 
-# Run the container
+# Run the container with environment variables
 docker run -d -p 8080:8080 \
   -e AWS_ACCESS_KEY_ID=your_access_key \
   -e AWS_SECRET_ACCESS_KEY=your_secret_key \
-  -e AWS_DEFAULT_REGION=us-east-1 \
+  -e AWS_SESSION_TOKEN=your_session_token \
+  -e AWS_REGION=us-east-1 \
+  -e LOG_GROUP_NAME=appl_audit_log \
   --name audit-log-webhook \
   audit-log-webhook
 ```
 
 ### Using Docker Compose:
 
-```bash
-# Set AWS credentials in environment
-export AWS_ACCESS_KEY_ID=your_access_key
-export AWS_SECRET_ACCESS_KEY=your_secret_key
-export AWS_SESSION_TOKEN=your_session_token
-export AWS_DEFAULT_REGION=us-east-1
+1. Create a `.env` file from the example:
+   ```bash
+   cp .env.example .env
+   ```
 
-# Start the service
-docker-compose up -d
+2. Edit `.env` with your AWS credentials
 
-# View logs
-docker-compose logs -f
+3. Start the service:
+   ```bash
+   docker-compose up -d
+   ```
+
+4. View logs:
+   ```bash
+   docker-compose logs -f
+   ```
+
+5. Stop the service:
+   ```bash
+   docker-compose down
+   ```
 
 
 ## GitHub Actions CI/CD
