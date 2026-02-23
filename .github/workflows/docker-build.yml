@@ -36,7 +36,8 @@ jobs:
             echo "tag=PR-${{ github.event.number }}" >> $GITHUB_ENV
           else
             echo "IS master branch"
-            echo "tag=${{ github.ref_name }}-${{ github.sha }}" >> $GITHUB_ENV
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            echo "tag=${{ github.ref_name }}-${SHORT_SHA}" >> $GITHUB_ENV
           fi
 
       - name: Set up Docker Buildx
